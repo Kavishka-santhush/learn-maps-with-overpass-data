@@ -4,10 +4,10 @@ import { useEffect } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-export default function MapTutorialStep2() {
+export default function MapTutorialStep3() {
   useEffect(() => {
-    // 1. මැප් එක මුලින්ම කොළඹ මධ්‍යස්ථානය කරගෙන Open කරනවා
-    const map = L.map('map-container').setView([6.9271, 79.8612], 10);
+    // 1. මැප් එක කොළඹ මධ්‍යස්ථානය කරගෙන open කිරීම
+    const map = L.map('map-container').setView([6.9271, 79.8612], 11);
 
     // 2. OpenStreetMap Tile Layer එක දානවා
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -15,74 +15,58 @@ export default function MapTutorialStep2() {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    // ----------------------------------------------------
-    // 3. Custom Icon එකක් නිර්මාණය කිරීම (Custom Marker Icon)
-    // ----------------------------------------------------
-    const customLocationIcon = L.icon({
-      iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png', // Red Pin Icon URL
-      iconSize: [38, 38],       // Icon එකේ Width, Height (Pixels)
-      iconAnchor: [19, 38],     // Icon එක මැප් එකේ ලක්ෂ්‍යයට අදාල වන තැන (Center-bottom)
-      popupAnchor: [0, -38]     // Popup එක පෙන්විය යුතු ස්ථානය (Icon එකට උඩින්)
-    });
-
-    const hospitalIcon = L.icon({
-      iconUrl: 'https://cdn-icons-png.flaticon.com/512/4320/4320337.png', // Hospital Icon
+    // 3. Custom Icon එකක් (කොළඹ කොටුව සඳහා)
+    const colomboIcon = L.icon({
+      iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
       iconSize: [35, 35],
       iconAnchor: [17, 35],
       popupAnchor: [0, -35]
     });
 
+    // 4. Marker එකක් දැමීම
+    const marker = L.marker([6.9271, 79.8612], { icon: colomboIcon }).addTo(map);
+    marker.bindPopup("<b>Colombo Fort / Center</b>");
+
     // ----------------------------------------------------
-    // 4. Sample Data Array (නගර සහ ස්ථාන කිහිපයක Latitude / Longitude)
+    // 5. POLYLINE (රේඛාවක් / මාර්ගයක් ඇඳීම)
     // ----------------------------------------------------
-    const locations = [
-      {
-        id: 1,
-        name: "Colombo Lotus Tower",
-        category: "Landmark",
-        lat: 6.9271,
-        lng: 79.8612,
-        description: "ශ්‍රී ලංකාවේ උසම නෙළුම් කුලුන (Lotus Tower).",
-        icon: customLocationIcon
-      },
-      {
-        id: 2,
-        name: "National Hospital of Sri Lanka",
-        category: "Hospital",
-        lat: 6.9187,
-        lng: 79.8686,
-        description: "කොළඹ ජාතික රෝහල.",
-        icon: hospitalIcon
-      },
-      {
-        id: 3,
-        name: "Negombo Beach",
-        category: "Attraction",
-        lat: 7.2083,
-        lng: 79.8358,
-        description: "මීගමුව වෙරළ තීරය.",
-        icon: customLocationIcon
-      }
+    // උදාහරණයක් ලෙස කොළඹ සිට මීගමුව දක්වා යන මාවතක් (Coordinates කිහිපයක් සම්බන්ධ කරමින්)
+    const routeCoordinates = [
+      [6.9271, 79.8612], // කොළඹ
+      [6.9890, 79.9155], // කැලණිය / පෑලියගොඩ ප්‍රදේශය හරහා
+      [7.0840, 79.9925], // ගම්පහ පැත්තට හැරෙන තැනක් වගේ
+      [7.2083, 79.8358]  // මීගමුව වෙරළ
     ];
 
-    // ----------------------------------------------------
-    // 5. Loop එකක් මගින් Markers මැප් එකට එකතු කිරීම
-    // ----------------------------------------------------
-    locations.forEach((loc) => {
-      // Marker එක හදලා, custom icon එක set කරලා, map එකට add කරනවා
-      const marker = L.marker([loc.lat, loc.lng], { icon: loc.icon }).addTo(map);
+    const routePolyline = L.polyline(routeCoordinates, {
+      color: '#3b82f6',    // රේඛාවේ පාට (Blue)
+      weight: 5,           // රේඛාවේ ඝනකම (Thickness)
+      opacity: 0.7         // පාරාභූත බව (Opacity)
+    }).addTo(map);
 
-      // Marker එක Click කරාම පේන HTML Popup එකක් සෙට් කරනවා
-      marker.bindPopup(`
-        <div style="padding: 4px;">
-          <h3 style="font-weight: bold; font-size: 16px; margin-bottom: 4px; color: #1e293b;">${loc.name}</h3>
-          <span style="background-color: #e2e8f0; font-size: 11px; padding: 2px 6px; rounded: 4px; color: #475569;">
-            ${loc.category}
-          </span>
-          <p style="font-size: 13px; margin-top: 8px; color: #334155;">${loc.description}</p>
-        </div>
-      `);
-    });
+    // Polyline එක උඩ Click කරාම පෙන්වන Popup එකක්
+    routePolyline.bindPopup("<b>Sample Route:</b> Colombo to Negombo Path");
+
+    // ----------------------------------------------------
+    // 6. POLYGON (ප්‍රදේශයක මායිමක් / බහුඅස්‍රයක් ඇඳීම)
+    // ----------------------------------------------------
+    // උදාහරණයක් ලෙස කොළඹ අවට ප්‍රදේශයක් ආවරණය වන පරිදි Polygon එකක කෝඩිනේට්ස්
+    const zonePolygonCoordinates = [
+      [6.9500, 79.8500],
+      [6.9500, 79.9000],
+      [6.8900, 79.9000],
+      [6.8900, 79.8500]
+    ];
+
+    const zonePolygon = L.polygon(zonePolygonCoordinates, {
+      color: '#ef4444',        // මායිමේ පාට (Red border)
+      fillColor: '#f87171',    // ඇතුළේ පුරවන පාට (Light Red fill)
+      fillOpacity: 0.4,        // ඇතුළේ පාටේ විනිවිදභාවය
+      weight: 3                // මායිමේ ඝනකම
+    }).addTo(map);
+
+    // Polygon එක උඩ Click කරාම පෙන්වන Popup එකක්
+    zonePolygon.bindPopup("<b>Restricted Zone / District Area</b><br>මෙය විශේෂිත ප්‍රදේශයක මායිමකි.");
 
     // Clean up function
     return () => {
@@ -94,10 +78,10 @@ export default function MapTutorialStep2() {
     <main className="flex flex-col items-center justify-center min-h-screen p-6 bg-gray-100">
       <div className="w-full max-w-4xl bg-white p-4 rounded-xl shadow-md">
         <h1 className="text-2xl font-bold mb-2 text-gray-800">
-          Step 2: Custom Icons & Interactive Popups 📍
+          Step 3: Polylines & Polygons 📐
         </h1>
         <p className="text-gray-600 mb-4">
-          මැප් එකේ තියෙන Markers (Red Pin / Hospital) උඩ Click කරලා බලන්න. ඩේටා Array එකකින් Markers dynamically render වෙලා තියෙනවා.
+          මෙම සිතියමෙහි නිල් පාටින් පාරක්/මාර්ගයක් (Polyline) සහ රතු පාටින් ප්‍රදේශයක මායිමක් (Polygon) ඇඳ ඇත. ඒවා මත ක්ලික් කර විස්තර බලන්න.
         </p>
 
         {/* Map Container */}
