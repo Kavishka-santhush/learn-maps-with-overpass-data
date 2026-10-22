@@ -1,129 +1,83 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-export default function MapTutorialStep4() {
+export default function MapTutorialStep5() {
+  const [loading, setLoading] = useState(true);
+  const [placeCount, setPlaceCount] = useState(0);
+
   useEffect(() => {
     // 1. මැප් එක කොළඹ ප්‍රදේශය මධ්‍යස්ථානය කරගෙන open කිරීම
-    const map = L.map('map-container').setView([6.9271, 79.8612], 12);
+    const map = L.map('map-container').setView([6.9271, 79.8612], 13);
 
     // 2. OpenStreetMap Tile Layer එක දානවා
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}⁠/{x}/{y}.png', {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      attribution: '&copy; <a href="https://opensource.com">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    // -------------------------------------------------------------------------
-    // 3. MOCK GEOJSON DATA (සාමාන්‍යයෙන් මෙය ගවර්මන්ට් සයිට් එකකින් හෝ API එකකින් ලැබේ)
-    // -------------------------------------------------------------------------
-    const governmentGeoJSONData = {
-      "type": "FeatureCollection",
-      "features": [
-        // --- 1. Polygon Feature (විශේෂිත සංවර්ධන කලාපයක මායිම - රජයේ දත්ත ලෙස සිතමු) ---
-        {
-          "type": "Feature",
-          "geometry": {
-            "type": "Polygon",
-            "coordinates": [
-              [
-                [79.8500, 6.9300],
-                [79.8800, 6.9400],
-                [79.8900, 6.9100],
-                [79.8600, 6.8900],
-                [79.8500, 6.9300]
-              ]
-            ]
-          },
-          "properties": {
-            "name": "Colombo Commercial Zone",
-            "type": "Zone",
-            "description": "රජයේ නගර සංවර්ධන අධිකාරිය මගින් නම් කරන ලද වාණිජ කලාපය.",
-            "status": "Active"
-          }
-        },
-        // --- 2. Point Feature (රෝහලක් / මහජන සේවා ස්ථානයක්) ---
-        {
-          "type": "Feature",
-          "geometry": {
-            "type": "Point",
-            "coordinates": [79.8612, 6.9271] // [Longitude, Latitude] - GeoJSON වල මූලිකවම Longitude එක මුලින් එන්නේ!
-          },
-          "properties": {
-            "name": "Central Public Hub",
-            "type": "Facility",
-            "description": "මහජන සේවා මධ්‍යස්ථානය සහ තොරතුරු කුටිය."
-          }
-        },
-        // --- 3. Point Feature (තවත් ස්ථානයක්) ---
-        {
-          "type": "Feature",
-          "geometry": {
-            "type": "Point",
-            "coordinates": [79.8750, 6.9150]
-          },
-          "properties": {
-            "name": "Smart Transit Station",
-            "type": "Transit",
-            "description": "ප්‍රධාන බස් සහ දුම්රිය සංක්‍රාන්ති මධ්‍යස්ථානය."
-          }
-        }
-      ]
-    };
+    // Marker Layer Group එකක් තබා ගැනීම (Clean up කිරීමට පහසු වීමට)
+    const markersLayer = L.layerGroup().addTo(map);
 
-    // -------------------------------------------------------------------------
-    // 4. L.geoJSON() භාවිතා කරමින් ඩේටා මැප් එකට Render කිරීම සහ Style කිරීම
-    // -------------------------------------------------------------------------
-    L.geoJSON(governmentGeoJSONData, {
-      
-      // අ) Polygons සහ Lines සඳහා Style ලබාදීම
-      style: function (feature) {
-        if (feature.properties.type === 'Zone') {
-          return {
-            color: '#7c3aed',      // පර්පල් පාට මායිම (Purple border)
-            fillColor: '#c084fc',  // ඇතුළේ පුරවන පාට (Light Purple fill)
-            fillOpacity: 0.4,
-            weight: 3
-          };
-        }
-        return { color: '#333', weight: 2 };
-      },
+    // 3. Overpass API Query එක ලිවීම
+    // (කොළඹ අවට ප්‍රදේශය තුළ තියෙන amenity = hospital / clinic සොයා ගැනීමට)
+    const overpassQuery = `
+      [out:json];
+      (
+        node["amenity"~"hospital|clinic|doctors"](6.87,79.82,6.98,79.92);
+      );
+      out body;
+    `;
 
-      // බ) Point (Markers) සඳහා Custom Icons හෝ Markers සැකසීම
-      pointToLayer: function (feature, latlng) {
-        // කැමති icon එකක් තෝරාගැනීම
-        const iconUrl = feature.properties.type === 'Facility' 
-          ? 'https://cdn-icons-png.flaticon.com/512/3177/3177361.png' // Building/Hub icon
-          : 'https://cdn-icons-png.flaticon.com/512/684/684908.png';  // Pin icon
+    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
 
-        const customIcon = L.icon({
-          iconUrl: iconUrl,
+    // 4. API එකට Fetch ඉල්ලීමක් යැවීම
+    fetch(url)
+      .then((response) => response.json())
+      .then((data) => {
+        // මෙතැනයි අර දෝෂය තිබුණේ (|| පසු [] එකතු කරන ලදී)
+        const elements = data.elements || [];
+        setPlaceCount(elements.length);
+        setLoading(false);
+
+        // Hospital සඳහා Custom Icon එකක් හැදීම
+        const hospitalIcon = L.icon({
+          iconUrl: 'https://cdn-icons-png.flaticon.com/512/4320/4320337.png',
           iconSize: [32, 32],
           iconAnchor: [16, 32],
           popupAnchor: [0, -32]
         });
 
-        return L.marker(latlng, { icon: customIcon });
-      },
+        // 5. ලැබුණු ඩේටා (Elements) Loop කරලා මැප් එකට Markers දැමීම
+        elements.forEach((element) => {
+          if (element.lat && element.lon) {
+            const name = element.tags?.name || 'Medical Facility (Unnamed)';
+            const amenityType = element.tags?.amenity || 'hospital';
+            const address = element.tags?.['addr:street'] || 'Colombo Region';
 
-      // ඇ) හැම Feature එකක්ම (Polygon හෝ Marker) උඩ Click කරාම Popup එකක් පෙන්වීම
-      onEachFeature: function (feature, layer) {
-        if (feature.properties) {
-          const props = feature.properties;
-          layer.bindPopup(`
-            <div style="padding: 6px; font-family: sans-serif;">
-              <h3 style="font-weight: bold; font-size: 15px; color: #4c1d95; margin-bottom: 4px;">${props.name}</h3>
-              <span style="background-color: #ede9fe; color: #6d28d9; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
-                ${props.type}
-              </span>
-              <p style="font-size: 13px; color: #334155; margin-top: 6px;">${props.description}</p>
-            </div>
-          `);
-        }
-      }
+            const marker = L.marker([element.lat, element.lon], { icon: hospitalIcon });
 
-    }).addTo(map);
+            marker.bindPopup(`
+              <div style="padding: 6px; font-family: sans-serif;">
+                <h3 style="font-weight: bold; font-size: 15px; color: #b91c1c; margin-bottom: 4px;">${name}</h3>
+                <span style="background-color: #fee2e2; color: #991b1b; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
+                  ${amenityType.toUpperCase()}
+                </span>
+                <p style="font-size: 13px; color: #334155; margin-top: 6px;"><b>Address / Street:</b> ${address}</p>
+                <p style="font-size: 11px; color: #64748b; margin-top: 4px;">Lat: ${element.lat.toFixed(4)}, Lon: ${element.lon.toFixed(4)}</p>
+              </div>
+            `);
+
+            markersLayer.addLayer(marker);
+          }
+        });
+      })
+      .catch((error) => {
+        console.error('Error fetching Overpass data:', error);
+        setLoading(false);
+      });
 
     // Clean up function
     return () => {
@@ -134,18 +88,31 @@ export default function MapTutorialStep4() {
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-6 bg-gray-100">
       <div className="w-full max-w-4xl bg-white p-4 rounded-xl shadow-md">
-        <h1 className="text-2xl font-bold mb-2 text-gray-800">
-          Step 4: Working with GeoJSON Data (Government / APIs) 🌐
-        </h1>
+        <div className="flex justify-between items-center mb-2">
+          <h1 className="text-2xl font-bold text-gray-800">
+            Step 5: Overpass API Integration (Real OSM Data) ⚡
+          </h1>
+          <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full">
+            {loading ? 'Loading live data...' : `Found ${placeCount} Hospitals/Clinics`}
+          </span>
+        </div>
         <p className="text-gray-600 mb-4">
-          රජයේ සයිට් එකකින් හෝ API එකකින් ලැබෙන GeoJSON ඩේටා (Polygons සහ Points එකම ඩේටා සෙට් එකක) ස්වයංක්‍රීයව මැප් එකට ලෝඩ් කර ඇත.
+          මෙම සිතියම OpenStreetMap සර්වර් එකෙන් Overpass API හරහා කොළඹ ප්‍රදේශයේ සැබෑ රෝහල් සහ සායන (Hospitals & Clinics) ඩේටා ඩයිනමික් ලෙස ලබාගෙන පෙන්වයි.
         </p>
 
         {/* Map Container */}
         <div 
           id="map-container" 
-          className="w-full h-[550px] rounded-lg border border-gray-300 z-0"
-        />
+          className="w-full h-[550px] rounded-lg border border-gray-300 z-0 relative"
+        >
+          {loading && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg">
+              <p className="text-lg font-semibold text-blue-600 animate-pulse">
+                Fetching live map data from OpenStreetMap... 🌍
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
