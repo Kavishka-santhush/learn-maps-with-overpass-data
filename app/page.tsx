@@ -4,10 +4,10 @@ import { useEffect } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-export default function MapTutorialStep3() {
+export default function MapTutorialStep3Advanced() {
   useEffect(() => {
-    // 1. මැප් එක කොළඹ මධ්‍යස්ථානය කරගෙන open කිරීම
-    const map = L.map('map-container').setView([6.9271, 79.8612], 11);
+    // 1. මැප් එක කොළඹ සහ මහනුවර මැද ප්‍රදේශය කේන්ද්‍ර කරගෙන open කිරීම (Zoom level 10)
+    const map = L.map('map-container').setView([7.1000, 80.1500], 10);
 
     // 2. OpenStreetMap Tile Layer එක දානවා
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -15,58 +15,57 @@ export default function MapTutorialStep3() {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    // 3. Custom Icon එකක් (කොළඹ කොටුව සඳහා)
-    const colomboIcon = L.icon({
-      iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
-      iconSize: [35, 35],
-      iconAnchor: [17, 35],
-      popupAnchor: [0, -35]
-    });
-
-    // 4. Marker එකක් දැමීම
-    const marker = L.marker([6.9271, 79.8612], { icon: colomboIcon }).addTo(map);
-    marker.bindPopup("<b>Colombo Fort / Center</b>");
-
     // ----------------------------------------------------
-    // 5. POLYLINE (රේඛාවක් / මාර්ගයක් ඇඳීම)
+    // 3. POLYLINE: කොළඹ සිට මහනුවර දක්වා සැබෑ මාර්ගයක් (Winding Route)
     // ----------------------------------------------------
-    // උදාහරණයක් ලෙස කොළඹ සිට මීගමුව දක්වා යන මාවතක් (Coordinates කිහිපයක් සම්බන්ධ කරමින්)
-    const routeCoordinates = [
-      [6.9271, 79.8612], // කොළඹ
-      [6.9890, 79.9155], // කැලණිය / පෑලියගොඩ ප්‍රදේශය හරහා
-      [7.0840, 79.9925], // ගම්පහ පැත්තට හැරෙන තැනක් වගේ
-      [7.2083, 79.8358]  // මීගමුව වෙරළ
+    const colomboToKandyRoute = [
+      [6.9271, 79.8612], // කොළඹ (Colombo)
+      [6.9580, 79.8880], // පැලියගොඩ
+      [7.0000, 79.9500], // කඩවත
+      [7.0850, 80.0150], // නිට්ටඹුව පැත්තට
+      [7.2415, 80.1970], // වරකාපොළ
+      [7.2513, 80.3464], // කෑගල්ල
+      [7.2533, 80.5233], // කඩුගන්නාව
+      [7.2694, 80.5925], // පේරාදෙනිය
+      [7.2906, 80.6337]  // මහනුවර (Kandy)
     ];
 
-    const routePolyline = L.polyline(routeCoordinates, {
-      color: '#3b82f6',    // රේඛාවේ පාට (Blue)
-      weight: 5,           // රේඛාවේ ඝනකම (Thickness)
-      opacity: 0.7         // පාරාභූත බව (Opacity)
+    const routePolyline = L.polyline(colomboToKandyRoute, {
+      color: '#2563eb',    // තද නිල් පාට (Blue route)
+      weight: 6,           // ඝනකම
+      opacity: 0.8         // විනිවිදභාවය
     }).addTo(map);
 
-    // Polyline එක උඩ Click කරාම පෙන්වන Popup එකක්
-    routePolyline.bindPopup("<b>Sample Route:</b> Colombo to Negombo Path");
+    routePolyline.bindPopup("<b>Main Route:</b> Colombo to Kandy Highway/Main Road");
 
     // ----------------------------------------------------
-    // 6. POLYGON (ප්‍රදේශයක මායිමක් / බහුඅස්‍රයක් ඇඳීම)
+    // 4. POLYGON: සංකීර්ණ බහුඅස්‍රයක් (Complex Zone / District Area Boundary)
     // ----------------------------------------------------
-    // උදාහරණයක් ලෙස කොළඹ අවට ප්‍රදේශයක් ආවරණය වන පරිදි Polygon එකක කෝඩිනේට්ස්
-    const zonePolygonCoordinates = [
-      [6.9500, 79.8500],
-      [6.9500, 79.9000],
-      [6.8900, 79.9000],
-      [6.8900, 79.8500]
+    // ලකුණු 7-8 ක් එකතු කර සාදන ලද සංකීර්ණ මායිම් හැඩයක් (උදාහරණයක් ලෙස ප්‍රදේශයක සීමාවක්)
+    const complexZoneCoordinates = [
+      [7.0500, 79.9200], // උතුරු මුල්ල
+      [7.1200, 80.0000], // ඊසාන දිශාව
+      [7.1400, 80.1000], // නැගෙනහිර දිශාව
+      [7.0600, 80.1800], // ගිනිකොන දිශාව
+      [6.9500, 80.1500], // දකුණු මුල්ල (උඩ)
+      [6.9000, 80.0500], // නිරිත දිශාව
+      [6.9800, 79.9400]  // බටහිර දිශාව
     ];
 
-    const zonePolygon = L.polygon(zonePolygonCoordinates, {
-      color: '#ef4444',        // මායිමේ පාට (Red border)
-      fillColor: '#f87171',    // ඇතුළේ පුරවන පාට (Light Red fill)
-      fillOpacity: 0.4,        // ඇතුළේ පාටේ විනිවිදභාවය
-      weight: 3                // මායිමේ ඝනකම
+    const complexPolygon = L.polygon(complexZoneCoordinates, {
+      color: '#dc2626',        // මායිමේ පාට (Red border)
+      fillColor: '#fca5a5',    // ඇතුළේ පුරවන පාට (Soft Red fill)
+      fillOpacity: 0.5,        // විනිවිදභාවය
+      weight: 3,               // මායිමේ ඝනකම
+      dashArray: '5, 5'        // මායිම තිත් රේඛාවක් ලෙස පෙන්වීමට (Optional - dashed border)
     }).addTo(map);
 
-    // Polygon එක උඩ Click කරාම පෙන්වන Popup එකක්
-    zonePolygon.bindPopup("<b>Restricted Zone / District Area</b><br>මෙය විශේෂිත ප්‍රදේශයක මායිමකි.");
+    complexPolygon.bindPopup(`
+      <div style="padding: 4px;">
+        <h3 style="font-weight: bold; color: #b91c1c;">Special Economic/Development Zone</h3>
+        <p style="font-size: 12px; margin-top: 4px;">මෙය බහු-ලක්ෂ්‍ය (Multi-vertex) සංකීර්ණ මායිම් ප්‍රදේශයකි.</p>
+      </div>
+    `);
 
     // Clean up function
     return () => {
@@ -78,16 +77,16 @@ export default function MapTutorialStep3() {
     <main className="flex flex-col items-center justify-center min-h-screen p-6 bg-gray-100">
       <div className="w-full max-w-4xl bg-white p-4 rounded-xl shadow-md">
         <h1 className="text-2xl font-bold mb-2 text-gray-800">
-          Step 3: Polylines & Polygons 📐
+          Step 3 (Advanced): Complex Polygons & Routes 🗺️
         </h1>
         <p className="text-gray-600 mb-4">
-          මෙම සිතියමෙහි නිල් පාටින් පාරක්/මාර්ගයක් (Polyline) සහ රතු පාටින් ප්‍රදේශයක මායිමක් (Polygon) ඇඳ ඇත. ඒවා මත ක්ලික් කර විස්තර බලන්න.
+          මෙහි කොළඹ සිට මහනුවර දක්වා දිවෙන වක්‍ර මාර්ගයක් (Polyline) සහ බහු ලක්ෂ්‍යයන්ගෙන් යුත් සංකීර්ණ ප්‍රදේශයක් (Complex Polygon) සිතියම්ගත කර ඇත.
         </p>
 
         {/* Map Container */}
         <div 
           id="map-container" 
-          className="w-full h-[500px] rounded-lg border border-gray-300 z-0"
+          className="w-full h-[550px] rounded-lg border border-gray-300 z-0"
         />
       </div>
     </main>
