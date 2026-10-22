@@ -3,17 +3,13 @@
 import { useEffect, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet.markercluster/dist/MarkerCluster.css';
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-import 'leaflet.markercluster';
 
-export default function MapTutorialStep8() {
-  const [loading, setLoading] = useState(true);
-  const [totalPlaces, setTotalPlaces] = useState(0);
+export default function MapTutorialStep9() {
+  const [routeInfo, setRouteInfo] = useState({ distance: null, duration: null, loading: true });
 
   useEffect(() => {
-    // 1. මැප් එක ශ්‍රී ලංකාව මැද ප්‍රදේශයට (Zoom 8) සෙට් කිරීම
-    const map = L.map('map-container').setView([7.8731, 80.7718], 8);
+    // 1. මැප් එක කොළඹ සහ මහනුවර මැද ප්‍රදේශය කේන්ද්‍ර කරගෙන open කිරීම
+    const map = L.map('map-container').setView([7.1000, 80.2500], 10);
 
     // 2. OpenStreetMap Tile Layer එක දානවා
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -21,81 +17,67 @@ export default function MapTutorialStep8() {
       attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    // ----------------------------------------------------
-    // 3. MARKER CLUSTER GROUP එකක් සාදා ගැනීම
-    // ----------------------------------------------------
-    // L.markerClusterGroup() මගින් Markers එකතු කර Cluster කිරීමට පහසුකම සලසයි
-    const markerClusterGroup = L.markerClusterGroup({
-      chunkedLoading: true, // ඩේටා ගොඩක් තියෙද්දී smooth ලෙස load කිරීමට
-      spiderfyOnMaxZoom: true,
-      showCoverageOnHover: true,
-      zoomToBoundsOnClick: true
+    // 3. Start (Colombo) සහ End (Kandy) කෝඩිනේට්ස්
+    // OSRM API එකට [Longitude, Latitude] පිළිවෙළට දිය යුතුය!
+    const startCoord = [79.8612, 6.9271]; // Colombo [lng, lat]
+    const endCoord = [80.6337, 7.2906];   // Kandy [lng, lat]
+
+    // Custom Icons සාදා ගැනීම
+    const startIcon = L.icon({
+      iconUrl: 'https://cdn-icons-png.flaticon.com/512/1483/1483190.png', // Start pin
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
     });
 
-    // 4. Overpass API මගින් මුළු ලංකාවේම තියෙන ඉන්ධන හල් (Fuel Stations) සහ රෝහල් විශාල ප්‍රමාණයක් ලබා ගැනීම
-    const overpassQuery = `
-      [out:json];
-      (
-        node["amenity"="fuel"](5.9,79.5,9.9,81.9);
-        node["amenity"="hospital"](5.9,79.5,9.9,81.9);
-      );
-      out body;
-    `;
+    const endIcon = L.icon({
+      iconUrl: 'https://cdn-icons-png.flaticon.com/512/565/565547.png', // End pin
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
 
-    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
+    // Markers මැප් එකට දැමීම
+    const startMarker = L.marker([6.9271, 79.8612], { icon: startIcon }).addTo(map);
+    startMarker.bindPopup("<b>Start Point:</b> Colombo");
 
-    fetch(url)
-      .then((response) => response.json())
+    const endMarker = L.marker([7.2906, 80.6337], { icon: endIcon }).addTo(map);
+    endMarker.bindPopup("<b>Destination:</b> Kandy");
+
+    // 4. OSRM Routing API එකට Request එක යැවීම
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${startCoord[0]},${startCoord[1]};${endCoord[0]},${endCoord[1]}?overview=full&geometries=geojson`;
+
+    fetch(osrmUrl)
+      .then((res) => res.json())
       .then((data) => {
-        const elements = data.elements || [];
-        setTotalPlaces(elements.length);
-        setLoading(false);
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes;
+          const distanceInKm = (route.distance / 1000).toFixed(2); // මීටර් කිලෝමීටර් වලට හැරවීම
+          const durationInMins = Math.round(route.duration / 60);  // තත්පර මිනිත්තු වලට හැරවීම
 
-        // Icons සාදා ගැනීම
-        const fuelIcon = L.icon({
-          iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448628.png',
-          iconSize: [26, 26],
-          iconAnchor: [13, 26],
-          popupAnchor: [0, -26]
-        });
+          setRouteInfo({
+            distance: distanceInKm,
+            duration: durationInMins,
+            loading: false
+          });
 
-        const hospitalIcon = L.icon({
-          iconUrl: 'https://cdn-icons-png.flaticon.com/512/4320/4320337.png',
-          iconSize: [26, 26],
-          iconAnchor: [13, 26],
-          popupAnchor: [0, -26]
-        });
+          // 5. OSRM එකෙන් ලැබෙන GeoJSON coordinates හරහා Polyline එකක් ඇඳීම
+          // (OSRM geojson coordinates වල [lng, lat] තියෙන නිසා Leaflet [lat, lng] වලට මාරු කරගත යුතුය)
+          const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
 
-        // 5. Markers විශාල ප්‍රමාණය Loop කර Cluster Group එකට එකතු කිරීම
-        elements.forEach((element) => {
-          if (element.lat && element.lon) {
-            const isFuel = element.tags?.amenity === 'fuel';
-            const name = element.tags?.name || (isFuel ? 'Fuel Station' : 'Hospital / Clinic');
-            const icon = isFuel ? fuelIcon : hospitalIcon;
+          const routePolyline = L.polyline(routeCoordinates, {
+            color: '#2563eb', // තද නිල් පාට රේඛාව
+            weight: 6,
+            opacity: 0.85
+          }).addTo(map);
 
-            const marker = L.marker([element.lat, element.lon], { icon });
-
-            marker.bindPopup(`
-              <div style="padding: 4px; font-family: sans-serif;">
-                <h3 style="font-weight: bold; font-size: 14px; color: #1e293b; margin-bottom: 2px;">${name}</h3>
-                <span style="background-color: ${isFuel ? '#fef3c7' : '#fee2e2'}; color: ${isFuel ? '#b45309' : '#991b1b'}; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
-                  ${element.tags?.amenity?.toUpperCase()}
-                </span>
-                <p style="font-size: 11px; color: #64748b; margin-top: 4px;">Lat: ${element.lat.toFixed(4)}, Lon: ${element.lon.toFixed(4)}</p>
-              </div>
-            `);
-
-            // කෙලින්ම මැප් එකට නොදා Cluster Group එකට එකතු කරමු
-            markerClusterGroup.addLayer(marker);
-          }
-        });
-
-        // 6. සම්පූර්ණ Cluster Group එක මැප් එකට එකතු කිරීම
-        map.addLayer(markerClusterGroup);
+          // මැප් එක රූට් එක පෙනෙන සේ Zoom කිරීම
+          map.fitBounds(routePolyline.getBounds(), { padding: [50, 50] });
+        }
       })
-      .catch((error) => {
-        console.error('Error fetching cluster data:', error);
-        setLoading(false);
+      .catch((err) => {
+        console.error('Error fetching OSRM route:', err);
+        setRouteInfo(prev => ({ ...prev, loading: false }));
       });
 
     // Clean up function
@@ -106,20 +88,31 @@ export default function MapTutorialStep8() {
 
   return (
     <main className="flex flex-col h-screen bg-gray-100 p-6">
-      {/* Header Info */}
-      <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-xl shadow-md gap-2">
+      {/* Header & Route Details Panel */}
+      <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-xl shadow-md gap-4">
         <div>
           <h1 className="text-xl font-bold text-gray-800">
-            Step 8: Marker Clustering (High Density Data) 🧮
+            Step 9: Routing & Navigation (OSRM API) 🚗
           </h1>
           <p className="text-xs text-gray-600 mt-1">
-            ශ්‍රී ලංකාවේ ස්ථාන සීයකට/දහසකට වැඩි ප්‍රමාණයක් එකවර ලෝඩ් කර ඇති අතර, ඒවා Cluster Circles ලෙස සංවිධානය වී ඇත. Cluster එකක් උඩ Click කර එය දිගහැරෙන ආකාරය බලන්න!
+            කොළඹ සිට මහනුවර දක්වා OSRM රවුටින් සේවාව හරහා සැබෑ මංපෙත (Driving Route) ඩයිනමික් ලෙස ගණනය කර පෙන්වා ඇත.
           </p>
         </div>
-        <div className="flex gap-2">
-          <span className="bg-emerald-100 text-emerald-800 text-xs font-semibold px-3 py-1.5 rounded-lg">
-            {loading ? 'Fetching nationwide data...' : `Total Loaded Places: ${totalPlaces}`}
-          </span>
+
+        {/* Distance & Duration Display Card */}
+        <div className="flex gap-3">
+          <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-lg text-center">
+            <span className="block text-[10px] uppercase font-bold text-blue-600">Total Distance</span>
+            <span className="text-sm font-extrabold text-blue-900">
+              {routeInfo.loading ? 'Calculing...' : `${routeInfo.distance} km`}
+            </span>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-lg text-center">
+            <span className="block text-[10px] uppercase font-bold text-emerald-600">Est. Time</span>
+            <span className="text-sm font-extrabold text-emerald-900">
+              {routeInfo.loading ? 'Calculating...' : `${routeInfo.duration} mins`}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -127,14 +120,11 @@ export default function MapTutorialStep8() {
       <div className="flex-1 relative rounded-xl border border-gray-300 overflow-hidden shadow-md z-0">
         <div id="map-container" className="w-full h-full" />
 
-        {loading && (
+        {routeInfo.loading && (
           <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-50 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm font-semibold text-emerald-700">
-                Fetching nationwide Sri Lanka places & clustering...
-              </p>
-            </div>
+            <p className="text-sm font-semibold text-blue-600 animate-pulse">
+              Calculating optimal driving route... 🛣️
+            </p>
           </div>
         )}
       </div>
