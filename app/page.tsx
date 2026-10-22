@@ -1,23 +1,19 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import 'leaflet.markercluster';
 
-export default function MapTutorialStep6() {
-  const [hospitals, setHospitals] = useState([]);
-  const [filteredHospitals, setFilteredHospitals] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+export default function MapTutorialStep8() {
   const [loading, setLoading] = useState(true);
-
-  // Map සහ Markers refs සකස් කිරීම (React වලදී මැප් එක සහ markers පාලනය කිරීමට)
-  const mapRef = useRef(null);
-  const markersRef = useRef({});
+  const [totalPlaces, setTotalPlaces] = useState(0);
 
   useEffect(() => {
-    // 1. මැප් එක කොළඹ ප්‍රදේශය මධ්‍යස්ථානය කරගෙන open කිරීම (මෙහිදී mapRef එක save කරගනිමු)
-    const map = L.map('map-container').setView([6.9271, 79.8612], 13);
-    mapRef.current = map;
+    // 1. මැප් එක ශ්‍රී ලංකාව මැද ප්‍රදේශයට (Zoom 8) සෙට් කිරීම
+    const map = L.map('map-container').setView([7.8731, 80.7718], 8);
 
     // 2. OpenStreetMap Tile Layer එක දානවා
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -25,13 +21,23 @@ export default function MapTutorialStep6() {
       attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    const markersLayer = L.layerGroup().addTo(map);
+    // ----------------------------------------------------
+    // 3. MARKER CLUSTER GROUP එකක් සාදා ගැනීම
+    // ----------------------------------------------------
+    // L.markerClusterGroup() මගින් Markers එකතු කර Cluster කිරීමට පහසුකම සලසයි
+    const markerClusterGroup = L.markerClusterGroup({
+      chunkedLoading: true, // ඩේටා ගොඩක් තියෙද්දී smooth ලෙස load කිරීමට
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: true,
+      zoomToBoundsOnClick: true
+    });
 
-    // 3. Overpass API මගින් කොළඹ රෝහල් ඩේටා ලබා ගැනීම
+    // 4. Overpass API මගින් මුළු ලංකාවේම තියෙන ඉන්ධන හල් (Fuel Stations) සහ රෝහල් විශාල ප්‍රමාණයක් ලබා ගැනීම
     const overpassQuery = `
       [out:json];
       (
-        node["amenity"~"hospital|clinic|doctors"](6.87,79.82,6.98,79.92);
+        node["amenity"="fuel"](5.9,79.5,9.9,81.9);
+        node["amenity"="hospital"](5.9,79.5,9.9,81.9);
       );
       out body;
     `;
@@ -41,151 +47,96 @@ export default function MapTutorialStep6() {
     fetch(url)
       .then((response) => response.json())
       .then((data) => {
-        const elements = (data.elements || []).filter(el => el.tags && el.tags.name);
-        
-        // ඩේටා Format කර state එකට ඇතුළත් කිරීම
-        const formattedData = elements.map((el, index) => ({
-          id: el.id || index,
-          name: el.tags.name,
-          amenity: el.tags.amenity || 'hospital',
-          street: el.tags['addr:street'] || 'Colombo Region',
-          lat: el.lat,
-          lon: el.lon
-        }));
-
-        setHospitals(formattedData);
-        setFilteredHospitals(formattedData);
+        const elements = data.elements || [];
+        setTotalPlaces(elements.length);
         setLoading(false);
+
+        // Icons සාදා ගැනීම
+        const fuelIcon = L.icon({
+          iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448628.png',
+          iconSize: [26, 26],
+          iconAnchor: [13, 26],
+          popupAnchor: [0, -26]
+        });
 
         const hospitalIcon = L.icon({
           iconUrl: 'https://cdn-icons-png.flaticon.com/512/4320/4320337.png',
-          iconSize: [30, 30],
-          iconAnchor: [15, 30],
-          popupAnchor: [0, -30]
+          iconSize: [26, 26],
+          iconAnchor: [13, 26],
+          popupAnchor: [0, -26]
         });
 
-        // 4. Markers මැප් එකට එකතු කර ref එකේ save කරගැනීම
-        formattedData.forEach((item) => {
-          const marker = L.marker([item.lat, item.lon], { icon: hospitalIcon });
+        // 5. Markers විශාල ප්‍රමාණය Loop කර Cluster Group එකට එකතු කිරීම
+        elements.forEach((element) => {
+          if (element.lat && element.lon) {
+            const isFuel = element.tags?.amenity === 'fuel';
+            const name = element.tags?.name || (isFuel ? 'Fuel Station' : 'Hospital / Clinic');
+            const icon = isFuel ? fuelIcon : hospitalIcon;
 
-          marker.bindPopup(`
-            <div style="padding: 4px; font-family: sans-serif;">
-              <h3 style="font-weight: bold; font-size: 14px; color: #b91c1c; margin-bottom: 2px;">${item.name}</h3>
-              <span style="background-color: #fee2e2; color: #991b1b; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
-                ${item.amenity.toUpperCase()}
-              </span>
-              <p style="font-size: 12px; color: #334155; margin-top: 4px;"><b>Street:</b> ${item.street}</p>
-            </div>
-          `);
+            const marker = L.marker([element.lat, element.lon], { icon });
 
-          markersLayer.addLayer(marker);
-          markersRef.current[item.id] = marker; // පසුකාලීනව click කිරීමට marker එක save කරමු
+            marker.bindPopup(`
+              <div style="padding: 4px; font-family: sans-serif;">
+                <h3 style="font-weight: bold; font-size: 14px; color: #1e293b; margin-bottom: 2px;">${name}</h3>
+                <span style="background-color: ${isFuel ? '#fef3c7' : '#fee2e2'}; color: ${isFuel ? '#b45309' : '#991b1b'}; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
+                  ${element.tags?.amenity?.toUpperCase()}
+                </span>
+                <p style="font-size: 11px; color: #64748b; margin-top: 4px;">Lat: ${element.lat.toFixed(4)}, Lon: ${element.lon.toFixed(4)}</p>
+              </div>
+            `);
+
+            // කෙලින්ම මැප් එකට නොදා Cluster Group එකට එකතු කරමු
+            markerClusterGroup.addLayer(marker);
+          }
         });
+
+        // 6. සම්පූර්ණ Cluster Group එක මැප් එකට එකතු කිරීම
+        map.addLayer(markerClusterGroup);
       })
       .catch((error) => {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching cluster data:', error);
         setLoading(false);
       });
 
+    // Clean up function
     return () => {
       map.remove();
     };
   }, []);
 
-  // 5. Search Bar එකේ නම టైප් කරන විට ලැයිස්තුව ෆිල්ටර් කිරීම
-  const handleSearch = (e) => {
-    const keyword = e.target.value.toLowerCase();
-    setSearchTerm(keyword);
-
-    const filtered = hospitals.filter(item => 
-      item.name.toLowerCase().includes(keyword) || 
-      item.street.toLowerCase().includes(keyword)
-    );
-    setFilteredHospitals(filtered);
-  };
-
-  // 6. Sidebar එකේ අයිතමයක් උඩ click කළ විට මැප් එක අදාළ තැනට Zoom වීම සහ Popup එක පෙන්වීම
-  const handleSelectLocation = (item) => {
-    if (mapRef.current) {
-      mapRef.current.flyTo([item.lat, item.lon], 16, {
-        animate: true,
-        duration: 1.5
-      });
-
-      const marker = markersRef.current[item.id];
-      if (marker) {
-        marker.openPopup();
-      }
-    }
-  };
-
   return (
-    <main className="flex flex-col h-screen bg-gray-100 p-4">
-      {/* Header */}
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">
-          Step 6: Advanced Map Dashboard & Sidebar 🚀
-        </h1>
-        <p className="text-sm text-gray-600">
-          ግራපස ලැයිස්තුවෙන් (Sidebar) රෝහලක් ක්ලික් කර මැප් එක එය වෙත යොමු වන ආකාරය බලන්න. නැතහොත් Search බාර් එකෙන් පහසුවෙන් සොයන්න.
-        </p>
+    <main className="flex flex-col h-screen bg-gray-100 p-6">
+      {/* Header Info */}
+      <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-xl shadow-md gap-2">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">
+            Step 8: Marker Clustering (High Density Data) 🧮
+          </h1>
+          <p className="text-xs text-gray-600 mt-1">
+            ශ්‍රී ලංකාවේ ස්ථාන සීයකට/දහසකට වැඩි ප්‍රමාණයක් එකවර ලෝඩ් කර ඇති අතර, ඒවා Cluster Circles ලෙස සංවිධානය වී ඇත. Cluster එකක් උඩ Click කර එය දිගහැරෙන ආකාරය බලන්න!
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <span className="bg-emerald-100 text-emerald-800 text-xs font-semibold px-3 py-1.5 rounded-lg">
+            {loading ? 'Fetching nationwide data...' : `Total Loaded Places: ${totalPlaces}`}
+          </span>
+        </div>
       </div>
 
-      {/* Main Layout (Sidebar + Map Container) */}
-      <div className="flex flex-col md:flex-row flex-1 gap-4 bg-white p-4 rounded-xl shadow-md overflow-hidden">
-        
-        {/* Left Side: Sidebar & Search List */}
-        <div className="w-full md:w-1/3 flex flex-col h-[300px] md:h-auto border-r border-gray-200 pr-0 md:pr-4">
-          <div className="mb-3">
-            <input 
-              type="text"
-              placeholder="Search hospitals by name..."
-              value={searchTerm}
-              onChange={handleSearch}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Showing {filteredHospitals.length} facilities
-            </p>
-          </div>
+      {/* Map Container */}
+      <div className="flex-1 relative rounded-xl border border-gray-300 overflow-hidden shadow-md z-0">
+        <div id="map-container" className="w-full h-full" />
 
-          {/* Scrollable List */}
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-            {loading ? (
-              <p className="text-sm text-blue-600 animate-pulse text-center py-4">Loading sidebar list...</p>
-            ) : filteredHospitals.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No hospitals found.</p>
-            ) : (
-              filteredHospitals.map((item) => (
-                <div 
-                  key={item.id}
-                  onClick={() => handleSelectLocation(item)}
-                  className="p-3 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg cursor-pointer transition-all shadow-xs"
-                >
-                  <h4 className="font-semibold text-sm text-gray-800">{item.name}</h4>
-                  <p className="text-xs text-gray-500 mt-0.5">{item.street}</p>
-                  <span className="inline-block mt-1 bg-red-100 text-red-700 text-[10px] font-semibold px-2 py-0.5 rounded">
-                    {item.amenity.toUpperCase()}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Right Side: Map Container */}
-        <div className="w-full md:w-2/3 h-[400px] md:h-full relative rounded-lg border border-gray-300 overflow-hidden z-0">
-          <div id="map-container" className="w-full h-full" />
-          
-          {loading && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-50 flex items-center justify-center">
-              <p className="text-base font-semibold text-blue-600 animate-pulse">
-                Building Interactive Dashboard... 🌍
+        {loading && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm font-semibold text-emerald-700">
+                Fetching nationwide Sri Lanka places & clustering...
               </p>
             </div>
-          )}
-        </div>
-
+          </div>
+        )}
       </div>
     </main>
   );
